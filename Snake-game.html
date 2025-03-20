@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Classic Snake Game - PlayArena4u</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        @keyframes backgroundAnimation {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #1e3c72, #2a5298, #6a11cb);
+            background-size: 200% 200%;
+            animation: backgroundAnimation 10s ease infinite;
+            color: #fff;
+            font-family: 'Press Start 2P', cursive;
+            overflow: hidden;
+        }
+        canvas {
+            border: 2px solid #fff;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="400" height="400"></canvas>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+
+        const gridSize = 20;
+        const tileCount = canvas.width / gridSize;
+
+        let snake = [{ x: 10, y: 10 }];
+        let direction = { x: 0, y: 0 };
+        let food = { x: 5, y: 5 };
+        let score = 0;
+        let level = 1;
+        let powerUps = [];
+        let obstacles = [];
+        const powerUpTypes = ["speed", "slow", "shield"];
+        let gameSpeed = 100; // Initial game speed
+
+        function draw() {
+            // Clear the canvas
+            ctx.fillStyle = "#000";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw the snake
+            ctx.fillStyle = "#0f0";
+            ctx.strokeStyle = "#000";
+            ctx.lineWidth = 2;
+            snake.forEach(segment => {
+                ctx.beginPath();
+                ctx.roundRect(segment.x * gridSize, segment.y * gridSize, gridSize, gridSize, 5);
+                ctx.fill();
+                ctx.stroke();
+            });
+
+            // Draw the food
+            ctx.fillStyle = "#f00";
+            ctx.beginPath();
+            ctx.arc(food.x * gridSize + gridSize / 2, food.y * gridSize + gridSize / 2, gridSize / 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = "#fff";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Draw power-ups
+            drawPowerUps();
+
+            // Draw obstacles
+            drawObstacles();
+
+            // Draw the score and level
+            ctx.fillStyle = "#fff";
+            ctx.font = "20px 'Press Start 2P', cursive";
+            ctx.fillText("Score: " + score, 10, 30);
+            ctx.fillText("Level: " + level, 10, 60);
+        }
+
+        function update() {
+            const head = { x: snake[0].x + direction.x, y: snake[0].y + direction.y };
+            snake.unshift(head);
+
+            // Check for collision with food
+            if (head.x === food.x && head.y === food.y) {
+                score++;
+                if (score % 5 === 0) {
+                    level++;
+                    increaseDifficulty();
+                }
+                placeFood();
+                spawnPowerUp();
+                spawnObstacles();
+            } else {
+                snake.pop();
+            }
+
+            // Check for collision with power-ups
+            checkPowerUpCollision();
+
+            // Check for collision with obstacles
+            checkObstacleCollision();
+
+            // Check for collision with walls or itself
+            if (
+                head.x < 0 || head.x >= tileCount ||
+                head.y < 0 || head.y >= tileCount ||
+                snake.slice(1).some(segment => segment.x === head.x && segment.y === head.y)
+            ) {
+                resetGame();
+            }
+        }
+
+        function placeFood() {
+            food.x = Math.floor(Math.random() * tileCount);
+            food.y = Math.floor(Math.random() * tileCount);
+
+            // Ensure food doesn't spawn on the snake or obstacles
+            if (
+                snake.some(segment => segment.x === food.x && segment.y === food.y) ||
+                obstacles.some(obstacle => obstacle.x === food.x && obstacle.y === food.y)
+            ) {
+                placeFood();
+            }
+        }
+
+        function spawnPowerUp() {
+            if (Math.random() < 0.1) { // 10% chance to spawn a power-up
+                const type = powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
+                powerUps.push({
+                    x: Math.floor(Math.random() * tileCount),
+                    y: Math.floor(Math.random() * tileCount),
+                    type: type
+                });
+            }
+        }
+
+        function drawPowerUps() {
+            powerUps.forEach(powerUp => {
+                ctx.fillStyle = powerUp.type === "speed" ? "#00f" : powerUp.type === "slow" ? "#ff0" : "#0ff";
+                ctx.beginPath();
+                ctx.arc(powerUp.x * gridSize + gridSize / 2, powerUp.y * gridSize + gridSize / 2, gridSize / 2, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function checkPowerUpCollision() {
+            powerUps.forEach((powerUp, index) => {
+                if (snake[0].x === powerUp.x && snake[0].y === powerUp.y) {
+                    applyPowerUp(powerUp.type);
+                    powerUps.splice(index, 1);
+                }
+            });
+        }
+
+        function applyPowerUp(type) {
+            switch (type) {
+                case "speed":
+                    gameSpeed = Math.max(50, gameSpeed - 20); // Increase speed
+                    break;
+                case "slow":
+                    gameSpeed = Math.min(200, gameSpeed + 20); // Decrease speed
+                    break;
+                case "shield":
+                    // Activate shield (temporary invincibility)
+                    break;
+            }
+        }
+
+        function spawnObstacles() {
+            if (Math.random() < 0.05) { // 5% chance to spawn an obstacle
+                obstacles.push({
+                    x: Math.floor(Math.random() * tileCount),
+                    y: Math.floor(Math.random() * tileCount)
+                });
+            }
+        }
+
+        function drawObstacles() {
+            ctx.fillStyle = "#888";
+            obstacles.forEach(obstacle => {
+                ctx.fillRect(obstacle.x * gridSize, obstacle.y * gridSize, gridSize, gridSize);
+            });
+        }
+
+        function checkObstacleCollision() {
+            obstacles.forEach(obstacle => {
+                if (snake[0].x === obstacle.x && snake[0].y === obstacle.y) {
+                    resetGame();
+                }
+            });
+        }
+
+        function increaseDifficulty() {
+            gameSpeed = Math.max(50, gameSpeed - 10); // Increase speed with each level
+        }
+
+        function resetGame() {
+            snake = [{ x: 10, y: 10 }];
+            direction = { x: 0, y: 0 };
+            score = 0;
+            level = 1;
+            powerUps = [];
+            obstacles = [];
+            gameSpeed = 100;
+            placeFood();
+        }
+
+        document.addEventListener("keydown", e => {
+            switch (e.key) {
+                case "ArrowUp":
+                    if (direction.y === 0) direction = { x: 0, y: -1 };
+                    break;
+                case "ArrowDown":
+                    if (direction.y === 0) direction = { x: 0, y: 1 };
+                    break;
+                case "ArrowLeft":
+                    if (direction.x === 0) direction = { x: -1, y: 0 };
+                    break;
+                case "ArrowRight":
+                    if (direction.x === 0) direction = { x: 1, y: 0 };
+                    break;
+            }
+        });
+
+        function gameLoop() {
+            update();
+            draw();
+            setTimeout(gameLoop, gameSpeed);
+        }
+
+        placeFood();
+        gameLoop();
+    </script>
+</body>
+</html>
